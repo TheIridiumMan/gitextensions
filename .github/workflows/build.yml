@@ -49,10 +49,10 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Install WiX Toolset (choco)
-        run: |
-          choco install wixtoolset --version=3.14.0 -y
-        shell: powershell
+      #- name: Install WiX Toolset (choco)
+      #  run: |
+      #    choco install wixtoolset --version=3.14.0 -y
+      #  shell: powershell
       # For WiX v5 (if the project migrates), adjust installation accordingly.
 
       - name: Verify WiX tools
