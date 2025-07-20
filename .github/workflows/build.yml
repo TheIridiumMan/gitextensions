@@ -66,12 +66,12 @@ jobs:
           & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
         shell: powershell
 
-      - name: Build solution via build script
-        run: |
+   #   - name: Build solution via build script
+   #     run: |
           # The repository provides build.cmd (per build instructions).
           # Pass configuration and platform if the script supports them; otherwise msbuild explicitly afterward.
-          .\build.cmd || echo "build.cmd finished (non-zero exit is acceptable if tests failed separately)."
-        shell: cmd
+   #       .\build.cmd || echo "build.cmd finished (non-zero exit is acceptable if tests failed separately)."
+   #     shell: cmd
 
       - name: Build (MSBuild explicit) - App
         run: |
