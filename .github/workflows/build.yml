@@ -74,7 +74,7 @@ jobs:
    #     shell: cmd
       - name: List solution configurations
         run: |
-          msbuild GitExtensions.sln /preprocess:out.txt
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" GitExtensions.sln /preprocess:out.txt
           Select-String -Path out.txt -Pattern "Configuration|Platform"
         shell: powershell
         
