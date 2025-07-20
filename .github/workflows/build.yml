@@ -72,7 +72,12 @@ jobs:
           # Pass configuration and platform if the script supports them; otherwise msbuild explicitly afterward.
    #       .\build.cmd || echo "build.cmd finished (non-zero exit is acceptable if tests failed separately)."
    #     shell: cmd
-
+      - name: List solution configurations
+        run: |
+          msbuild GitExtensions.sln /preprocess:out.txt
+          Select-String -Path out.txt -Pattern "Configuration|Platform"
+        shell: powershell
+        
       - name: Build (MSBuild explicit) - App
         run: |
           "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" GitExtensions.sln /m /p:Configuration=Release /p:PlatformTarget=x86 /p:RunCodeAnalysis=false /verbosity:minimal
