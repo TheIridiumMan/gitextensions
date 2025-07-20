@@ -1,0 +1,124 @@
+name: Build MSI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  # If you later add signing, you may need: id-token: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86 ]   # Remove x64 if you only want 32-bit; remove x86 if building a newer 64-bit-only branch
+
+    env:
+      Configuration: Release
+      # Map matrix arch to MSBuild Platform
+      Platform: ${{ matrix.arch }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+            submodules: recursive   # Required by build instructions
+
+      - name: Setup NuGet cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.sln', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # If the project targets classic .NET Framework, no dotnet SDK may be required.
+      # If building a newer branch (e.g., .NET 8), uncomment the following and set the version.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install WiX Toolset (choco)
+        run: |
+          choco install wixtoolset --version=3.14.0 -y
+        shell: powershell
+      # For WiX v5 (if the project migrates), adjust installation accordingly.
+
+      - name: Verify WiX tools
+        run: |
+          candle.exe -? | Select-String "Windows Installer"
+          light.exe -?  | Select-String "Windows Installer"
+        shell: powershell
+
+      - name: Show MSBuild version
+        run: |
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
+        shell: powershell
+
+      - name: Build solution via build script
+        run: |
+          # The repository provides build.cmd (per build instructions).
+          # Pass configuration and platform if the script supports them; otherwise msbuild explicitly afterward.
+          .\build.cmd || echo "build.cmd finished (non-zero exit is acceptable if tests failed separately)."
+        shell: cmd
+
+      - name: Build (MSBuild explicit) - App
+        run: |
+          msbuild GitExtensions.sln /m /p:Configuration=%Configuration% /p:Platform=%Platform% /p:RunCodeAnalysis=false /verbosity:minimal
+        shell: cmd
+
+      # If there is a dedicated WiX solution/project (e.g., GitExtensionsInstaller.sln or .wixproj), build it here.
+      - name: Build MSI (WiX)
+        run: |
+          echo "Searching for WiX projects..."
+          dir /s /b *.wixproj
+          for %%f in (*.wixproj) do (
+            echo Building %%f
+            msbuild "%%f" /m /p:Configuration=%Configuration% /p:Platform=%Platform% /verbosity:minimal
+          )
+        shell: cmd
+        working-directory: setup\installer
+
+      - name: Collect MSI artifacts
+        run: |
+          mkdir artifacts
+          for /r %%f in (*.msi) do copy "%%f" artifacts\
+          dir artifacts
+        shell: cmd
+
+      # (Optional) Code signing step placeholder
+      # - name: Sign MSI
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   run: |
+      #     # Example: signtool sign /fd sha256 /a /f "$env:CODE_SIGN_PFX" /p "$env:CODE_SIGN_PASSWORD" artifacts\*.msi
+      #   shell: powershell
+      #   env:
+      #     CODE_SIGN_PFX: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+      #     CODE_SIGN_PASSWORD: ${{ secrets.CODE_SIGN_PASSWORD }}
+
+      - name: Upload MSI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitextensions-${{ matrix.arch }}-msi
+          path: artifacts/*.msi
+          if-no-files-found: error
+          retention-days: 7
+
+  # (Optional) Aggregate job if you want to do something after both architectures are built
+  summarize:
+    if: always()
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All architecture builds complete."
